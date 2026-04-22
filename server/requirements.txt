@@ -1,0 +1,3 @@
+fastapi[standard]
+trafilatura
+scikit-learn
