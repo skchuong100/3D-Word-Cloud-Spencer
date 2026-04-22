@@ -1,3 +1,5 @@
 fastapi[standard]
 trafilatura
 scikit-learn
+lxml_html_clean
+requests
