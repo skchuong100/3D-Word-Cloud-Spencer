@@ -61,6 +61,13 @@ CUSTOM_STOP_WORDS = {
     "friday",
     "saturday",
     "sunday",
+    "release",
+    "released",
+    "story",
+    "stories",
+    "source",
+    "sources",
+    "scheduled",
 }
 
 STOP_WORDS = sorted(set(ENGLISH_STOP_WORDS).union(CUSTOM_STOP_WORDS))
@@ -229,21 +236,55 @@ def build_word_windows(text: str) -> list[str]:
 
 
 def extract_ranked_words(chunks: list[str]) -> list[RankedWord]:
-    ranked_terms = rank_terms(chunks, ngram_range=(1, 2))
-    if not ranked_terms:
-        ranked_terms = rank_terms(chunks, ngram_range=(1, 1))
-    return ranked_terms
+    unigram_candidates = rank_terms(
+        chunks,
+        ngram_range=(1, 1),
+        limit=MAX_RESULTS * 5,
+        remove_stop_words=True,
+    )
+
+    bigram_candidates = rank_terms(
+        chunks,
+        ngram_range=(2, 2),
+        limit=MAX_RESULTS * 5,
+        remove_stop_words=False,
+    )
+
+    candidates = merge_ranked_candidates(unigram_candidates, bigram_candidates)
+    selected_pairs = filter_ranked_terms(candidates)
+
+    if not selected_pairs:
+        return []
+
+    selected_pairs = sorted(selected_pairs, key=lambda item: item[1], reverse=True)
+    max_score = max(score for _, score in selected_pairs)
+
+    return [
+        RankedWord(
+            word=term,
+            score=round(score, 6),
+            weight=round(score / max_score, 4) if max_score else 0.0,
+        )
+        for term, score in selected_pairs
+    ]
 
 
-def rank_terms(chunks: list[str], ngram_range: tuple[int, int]) -> list[RankedWord]:
+def rank_terms(
+    chunks: list[str],
+    ngram_range: tuple[int, int],
+    limit: int,
+    remove_stop_words: bool,
+) -> list[tuple[str, float]]:
     try:
+        token_pattern = get_token_pattern(ngram_range, remove_stop_words)
+
         vectorizer = TfidfVectorizer(
-            stop_words=STOP_WORDS,
+            stop_words=STOP_WORDS if remove_stop_words else None,
             lowercase=True,
             strip_accents="unicode",
             ngram_range=ngram_range,
-            token_pattern=r"(?u)\b[a-zA-Z][a-zA-Z\-]{2,}\b",
-            max_features=300,
+            token_pattern=token_pattern,
+            max_features=400,
             sublinear_tf=True,
         )
         matrix = vectorizer.fit_transform(chunks)
@@ -274,23 +315,127 @@ def rank_terms(chunks: list[str], ngram_range: tuple[int, int]) -> list[RankedWo
         seen_terms.add(cleaned_term)
         cleaned_pairs.append((cleaned_term, float(raw_score)))
 
-        if len(cleaned_pairs) == MAX_RESULTS:
+        if len(cleaned_pairs) == limit:
             break
 
-    if not cleaned_pairs:
-        return []
+    return sorted(cleaned_pairs, key=candidate_sort_key, reverse=True)
 
-    max_score = cleaned_pairs[0][1]
+def get_token_pattern(
+    ngram_range: tuple[int, int],
+    remove_stop_words: bool,
+) -> str:
+    if ngram_range == (2, 2) and not remove_stop_words:
+        return r"(?u)\b[a-zA-Z][a-zA-Z\-]{1,}\b"
 
-    return [
-        RankedWord(
-            word=term,
-            score=round(score, 6),
-            weight=round(score / max_score, 4) if max_score else 0.0,
-        )
-        for term, score in cleaned_pairs
-    ]
+    return r"(?u)\b[a-zA-Z][a-zA-Z\-]{2,}\b"
 
+def merge_ranked_candidates(
+    unigram_candidates: list[tuple[str, float]],
+    bigram_candidates: list[tuple[str, float]],
+) -> list[tuple[str, float]]:
+    merged: dict[str, float] = {}
+
+    for term, score in unigram_candidates:
+        merged[term] = max(score, merged.get(term, 0.0))
+
+    for term, score in bigram_candidates:
+        merged[term] = max(score, merged.get(term, 0.0))
+
+    return sorted(merged.items(), key=candidate_sort_key, reverse=True)
+
+def candidate_sort_key(item: tuple[str, float]) -> tuple[float, int, int]:
+    term, score = item
+    token_count = len(term.split())
+    adjusted_score = score * (1.12 if token_count > 1 else 1.0)
+    return (adjusted_score, token_count, len(term))
+
+
+def filter_ranked_terms(candidates: list[tuple[str, float]]) -> list[tuple[str, float]]:
+    selected: list[tuple[str, float]] = []
+
+    for term, score in candidates:
+        selected = remove_weaker_single_terms(term, score, selected)
+
+        if should_skip_candidate(term, score, selected):
+            continue
+
+        selected.append((term, score))
+
+        if len(selected) == MAX_RESULTS:
+            break
+
+    if len(selected) < MAX_RESULTS:
+        selected_terms = {term for term, _ in selected}
+
+        for term, score in candidates:
+            if term in selected_terms:
+                continue
+
+            selected.append((term, score))
+            selected_terms.add(term)
+
+            if len(selected) == MAX_RESULTS:
+                break
+
+    return selected
+
+
+def remove_weaker_single_terms(
+    candidate_term: str,
+    candidate_score: float,
+    selected: list[tuple[str, float]],
+) -> list[tuple[str, float]]:
+    candidate_tokens = candidate_term.split()
+
+    if len(candidate_tokens) <= 1:
+        return selected
+
+    candidate_token_set = set(candidate_tokens)
+    filtered_selected: list[tuple[str, float]] = []
+
+    for existing_term, existing_score in selected:
+        existing_tokens = existing_term.split()
+
+        if (
+            len(existing_tokens) == 1
+            and existing_term in candidate_token_set
+            and candidate_score >= existing_score * 0.65
+        ):
+            continue
+
+        filtered_selected.append((existing_term, existing_score))
+
+    return filtered_selected
+
+
+def should_skip_candidate(
+    candidate_term: str,
+    candidate_score: float,
+    selected: list[tuple[str, float]],
+) -> bool:
+    candidate_tokens = candidate_term.split()
+    candidate_token_set = set(candidate_tokens)
+
+    for existing_term, existing_score in selected:
+        existing_tokens = existing_term.split()
+        existing_token_set = set(existing_tokens)
+        shared_tokens = candidate_token_set & existing_token_set
+
+        if not shared_tokens:
+            continue
+
+        if len(candidate_tokens) == 1 and len(existing_tokens) > 1:
+            if candidate_term in existing_token_set and existing_score >= candidate_score * 0.7:
+                return True
+
+        if len(candidate_tokens) > 1 and len(existing_tokens) > 1:
+            if candidate_token_set <= existing_token_set and existing_score >= candidate_score * 0.85:
+                return True
+
+            if existing_token_set <= candidate_token_set and existing_score >= candidate_score * 0.85:
+                return True
+
+    return False
 
 def normalize_term(term: str) -> str:
     return WHITESPACE_PATTERN.sub(" ", term).strip().lower()
@@ -300,11 +445,20 @@ def is_usable_term(term: str) -> bool:
     if len(term) < 3:
         return False
 
-    if term.count(" ") > 1:
+    tokens = term.split()
+
+    if len(tokens) > 2:
         return False
 
-    if any(part in STOP_WORDS for part in term.split(" ")):
+    if any(len(token) < 2 for token in tokens):
         return False
+
+    if len(tokens) == 1:
+        if tokens[0] in STOP_WORDS:
+            return False
+    else:
+        if any(token in STOP_WORDS for token in tokens):
+            return False
 
     if re.fullmatch(r"(?:[a-z])(?:\s+[a-z])+", term):
         return False
