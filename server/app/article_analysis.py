@@ -101,6 +101,7 @@ class ArticleAnalysisResult:
     words: list[RankedWord]
 
 
+# Runs the full article analysis pipeline for a single URL.
 def analyze_article_url(url: str) -> ArticleAnalysisResult:
     downloaded = fetch_document(url)
 
@@ -124,6 +125,7 @@ def analyze_article_url(url: str) -> ArticleAnalysisResult:
     return ArticleAnalysisResult(title=title, words=ranked_words)
 
 
+# Fetches the page HTML, using trafilatura first and requests as a fallback.
 def fetch_document(url: str) -> str:
     downloaded = trafilatura.fetch_url(url)
     if downloaded:
@@ -137,6 +139,7 @@ def fetch_document(url: str) -> str:
         raise ArticleAnalysisError("Unable to fetch content from that URL.") from error
 
 
+# Tries a few extraction settings and keeps the longest usable text result.
 def extract_best_text(downloaded: str) -> str:
     attempts = [
         trafilatura.extract(
@@ -170,6 +173,7 @@ def extract_best_text(downloaded: str) -> str:
     return best_text
 
 
+# Normalizes whitespace and removes empty lines from extracted article text.
 def normalize_article_text(text: str) -> str:
     normalized = text.replace("\r\n", "\n").replace("\r", "\n")
     normalized = re.sub(r"\n{3,}", "\n\n", normalized)
@@ -183,6 +187,7 @@ def normalize_article_text(text: str) -> str:
     return "\n".join(lines)
 
 
+# Breaks the article into chunks that work better for term ranking.
 def build_text_chunks(text: str) -> list[str]:
     paragraphs = [
         paragraph.strip()
@@ -200,11 +205,13 @@ def build_text_chunks(text: str) -> list[str]:
     return build_word_windows(text)
 
 
+# Splits cleaned article text into sentence-like pieces.
 def split_sentences(text: str) -> list[str]:
     candidates = SENTENCE_SPLIT_PATTERN.split(text)
     return [sentence.strip() for sentence in candidates if len(sentence.split()) >= 6]
 
 
+# Groups nearby sentences together to create chunked text windows.
 def merge_sentences(sentences: list[str], window_size: int) -> list[str]:
     chunks: list[str] = []
 
@@ -216,6 +223,7 @@ def merge_sentences(sentences: list[str], window_size: int) -> list[str]:
     return chunks or [" ".join(sentences)]
 
 
+# Builds sliding word windows when paragraph and sentence chunking are too sparse.
 def build_word_windows(text: str) -> list[str]:
     words = text.split()
     if not words:
@@ -235,6 +243,7 @@ def build_word_windows(text: str) -> list[str]:
     return chunks or [text]
 
 
+# Builds unigram and bigram candidates, then normalizes the final weights.
 def extract_ranked_words(chunks: list[str]) -> list[RankedWord]:
     unigram_candidates = rank_terms(
         chunks,
@@ -269,6 +278,7 @@ def extract_ranked_words(chunks: list[str]) -> list[RankedWord]:
     ]
 
 
+# Ranks candidate terms with TF-IDF and applies basic cleanup rules.
 def rank_terms(
     chunks: list[str],
     ngram_range: tuple[int, int],
@@ -320,6 +330,8 @@ def rank_terms(
 
     return sorted(cleaned_pairs, key=candidate_sort_key, reverse=True)
 
+
+# Chooses the token rule used by the vectorizer for each ranking mode.
 def get_token_pattern(
     ngram_range: tuple[int, int],
     remove_stop_words: bool,
@@ -329,6 +341,8 @@ def get_token_pattern(
 
     return r"(?u)\b[a-zA-Z][a-zA-Z\-]{2,}\b"
 
+
+# Merges unigram and bigram candidates into one ranked list.
 def merge_ranked_candidates(
     unigram_candidates: list[tuple[str, float]],
     bigram_candidates: list[tuple[str, float]],
@@ -343,6 +357,8 @@ def merge_ranked_candidates(
 
     return sorted(merged.items(), key=candidate_sort_key, reverse=True)
 
+
+# Slightly boosts multi-word phrases when sorting raw candidates.
 def candidate_sort_key(item: tuple[str, float]) -> tuple[float, int, int]:
     term, score = item
     token_count = len(term.split())
@@ -350,6 +366,7 @@ def candidate_sort_key(item: tuple[str, float]) -> tuple[float, int, int]:
     return (adjusted_score, token_count, len(term))
 
 
+# Filters overlapping candidates to keep the final top-ranked list cleaner.
 def filter_ranked_terms(candidates: list[tuple[str, float]]) -> list[tuple[str, float]]:
     selected: list[tuple[str, float]] = []
 
@@ -380,6 +397,7 @@ def filter_ranked_terms(candidates: list[tuple[str, float]]) -> list[tuple[str, 
     return selected
 
 
+# Removes weaker single-word matches when a stronger phrase already covers them.
 def remove_weaker_single_terms(
     candidate_term: str,
     candidate_score: float,
@@ -408,6 +426,7 @@ def remove_weaker_single_terms(
     return filtered_selected
 
 
+# Skips terms that overlap too much with stronger terms already selected.
 def should_skip_candidate(
     candidate_term: str,
     candidate_score: float,
@@ -437,10 +456,13 @@ def should_skip_candidate(
 
     return False
 
+
+# Normalizes spacing and casing for a candidate term.
 def normalize_term(term: str) -> str:
     return WHITESPACE_PATTERN.sub(" ", term).strip().lower()
 
 
+# Rejects terms that are too short, too long, or made mostly of stop words.
 def is_usable_term(term: str) -> bool:
     if len(term) < 3:
         return False
@@ -466,6 +488,7 @@ def is_usable_term(term: str) -> bool:
     return True
 
 
+# Pulls a title from metadata and falls back to the domain when needed.
 def extract_title(metadata: object, url: str) -> str:
     title = getattr(metadata, "title", None)
 
