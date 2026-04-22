@@ -1,8 +1,8 @@
-from urllib.parse import urlparse
-
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, HttpUrl
+
+from app.article_analysis import ArticleAnalysisError, analyze_article_url
 
 app = FastAPI(title="3D Word Cloud API")
 
@@ -31,35 +31,6 @@ class AnalyzeArticleResponse(BaseModel):
     words: list[WordResult]
 
 
-PREVIEW_WORDS: list[tuple[str, float]] = [
-    ("policy", 19.4),
-    ("economy", 18.8),
-    ("global", 17.9),
-    ("market", 17.1),
-    ("technology", 16.6),
-    ("research", 15.8),
-    ("company", 15.2),
-    ("climate", 14.7),
-    ("growth", 14.1),
-    ("election", 13.5),
-    ("health", 12.9),
-    ("energy", 12.4),
-    ("science", 11.8),
-    ("security", 11.3),
-    ("future", 10.9),
-    ("trade", 10.4),
-    ("data", 10.0),
-    ("public", 9.6),
-    ("industry", 9.1),
-    ("digital", 8.7),
-    ("policy-makers", 8.3),
-    ("investment", 7.9),
-    ("analysis", 7.5),
-    ("supply", 7.1),
-    ("innovation", 6.8),
-]
-
-
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
@@ -67,21 +38,20 @@ async def health_check():
 
 @app.post("/analyze", response_model=AnalyzeArticleResponse)
 async def analyze_article(payload: AnalyzeArticleRequest):
-    parsed_url = urlparse(str(payload.url))
-    domain = parsed_url.netloc.replace("www.", "") or "article"
-    max_score = PREVIEW_WORDS[0][1]
-
-    words = [
-        WordResult(
-            word=word,
-            score=score,
-            weight=round(score / max_score, 4),
-        )
-        for word, score in PREVIEW_WORDS
-    ]
+    try:
+        analysis = analyze_article_url(str(payload.url))
+    except ArticleAnalysisError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
 
     return AnalyzeArticleResponse(
         url=payload.url,
-        title=f"Preview analysis for {domain}",
-        words=words,
+        title=analysis.title,
+        words=[
+            WordResult(
+                word=item.word,
+                score=item.score,
+                weight=item.weight,
+            )
+            for item in analysis.words
+        ],
     )
