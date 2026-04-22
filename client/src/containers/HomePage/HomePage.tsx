@@ -47,7 +47,7 @@ export function HomePage() {
 
   return (
     <main className="home-page">
-      <div className="home-page__content">
+      <section className="home-page__controls">
         <AnalyzeUrlForm
           url={url}
           isLoading={isLoading}
@@ -56,13 +56,15 @@ export function HomePage() {
           onSampleSelect={setUrl}
           onSubmit={handleAnalyze}
         />
+      </section>
 
+      <section className="home-page__visualization">
         <WordsPreview
           analysis={analysis}
           isLoading={isLoading}
           errorMessage={errorMessage}
         />
-      </div>
+      </section>
     </main>
   )
 }

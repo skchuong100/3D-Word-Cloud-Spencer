@@ -1,18 +1,23 @@
 .home-page {
   min-height: 100vh;
-  padding: 40px 24px 56px;
-}
-
-.home-page__content {
-  width: min(1100px, 100%);
-  margin: 0 auto;
+  padding: 40px 24px 64px;
   display: flex;
   flex-direction: column;
   gap: 28px;
 }
 
+.home-page__controls {
+  width: min(1100px, 100%);
+  margin: 0 auto;
+}
+
+.home-page__visualization {
+  width: 100%;
+}
+
 @media (max-width: 768px) {
   .home-page {
     padding: 20px 16px 40px;
+    gap: 20px;
   }
 }

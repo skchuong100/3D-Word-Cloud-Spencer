@@ -1,4 +1,5 @@
 import type { AnalyzeArticleResponse } from '../../modules/articleAnalyzer/articleAnalyzer.types'
+import { WordCloudScene } from '../WordCloudScene/WordCloudScene'
 import './WordsPreview.css'
 
 type WordsPreviewProps = {
@@ -50,18 +51,8 @@ export function WordsPreview({
         <p className="words-preview__url">{analysis.url}</p>
       </div>
 
-      <div className="words-preview__grid">
-        {analysis.words.map((item) => (
-          <span
-            key={item.word}
-            className="words-preview__pill"
-            style={{
-              fontSize: `${0.9 + item.weight * 1.6}rem`,
-            }}
-          >
-            {item.word}
-          </span>
-        ))}
+      <div className="words-preview__scene-shell">
+        <WordCloudScene words={analysis.words} />
       </div>
     </section>
   )
