@@ -6,7 +6,7 @@ import requests
 import trafilatura
 from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS, TfidfVectorizer
 
-MAX_RESULTS = 30
+MAX_RESULTS = 40
 MIN_EXTRACTED_TEXT_LENGTH = 250
 
 CUSTOM_STOP_WORDS = {

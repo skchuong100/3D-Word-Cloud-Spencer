@@ -1,10 +1,15 @@
 import type { FormEvent } from 'react'
 import './AnalyzeUrlForm.css'
 
+type SampleArticle = {
+  label: string
+  url: string
+}
+
 type AnalyzeUrlFormProps = {
   url: string
   isLoading: boolean
-  sampleUrls: string[]
+  sampleArticles: SampleArticle[]
   onUrlChange: (value: string) => void
   onSampleSelect: (value: string) => void
   onSubmit: () => void
@@ -13,7 +18,7 @@ type AnalyzeUrlFormProps = {
 export function AnalyzeUrlForm({
   url,
   isLoading,
-  sampleUrls,
+  sampleArticles,
   onUrlChange,
   onSampleSelect,
   onSubmit,
@@ -32,7 +37,7 @@ export function AnalyzeUrlForm({
         </h1>
         <p className="analyze-url-form__subcopy">
           Paste a news article URL, send it to the backend, and preview the
-          top-ranked words before the 3D scene is added in the next slice.
+          top-ranked words in a 3D scene below.
         </p>
       </div>
 
@@ -64,14 +69,14 @@ export function AnalyzeUrlForm({
       <div className="analyze-url-form__samples">
         <p className="analyze-url-form__samples-label">Sample links</p>
         <div className="analyze-url-form__sample-list">
-          {sampleUrls.map((sampleUrl) => (
+          {sampleArticles.map((sampleArticle) => (
             <button
-              key={sampleUrl}
+              key={sampleArticle.url}
               className="analyze-url-form__sample-chip"
               type="button"
-              onClick={() => onSampleSelect(sampleUrl)}
+              onClick={() => onSampleSelect(sampleArticle.url)}
             >
-              {sampleUrl}
+              {sampleArticle.label}
             </button>
           ))}
         </div>

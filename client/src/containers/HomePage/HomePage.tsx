@@ -5,14 +5,23 @@ import { analyzeArticle } from '../../modules/articleAnalyzer/articleAnalyzer.ap
 import type { AnalyzeArticleResponse } from '../../modules/articleAnalyzer/articleAnalyzer.types'
 import './HomePage.css'
 
-const sampleUrls = [
-  'https://www.reuters.com/',
-  'https://apnews.com/',
-  'https://www.npr.org/',
+const sampleArticles = [
+  {
+    label: 'News Article 1',
+    url: 'https://abcnews.com/US/georgia-wildfire-destroys-dozens-homes-spreads-5000-acres/story?id=132268739',
+  },
+  {
+    label: 'News Article 2',
+    url: 'https://www.npr.org/2026/04/22/nx-s1-5795403/golden-helmet-romania-recovery',
+  },
+  {
+    label: 'News Article 3',
+    url: 'https://www.nbcnews.com/news/us-news/two-university-south-florida-doctoral-students-are-missing-police-say-rcna341385',
+  },
 ]
 
 export function HomePage() {
-  const [url, setUrl] = useState(sampleUrls[0])
+  const [url, setUrl] = useState(sampleArticles[0].url)
   const [analysis, setAnalysis] = useState<AnalyzeArticleResponse | null>(null)
   const [lastSuccessfulAnalysis, setLastSuccessfulAnalysis] =
     useState<AnalyzeArticleResponse | null>(null)
@@ -53,7 +62,7 @@ export function HomePage() {
         <AnalyzeUrlForm
           url={url}
           isLoading={isLoading}
-          sampleUrls={sampleUrls}
+          sampleArticles={sampleArticles}
           onUrlChange={setUrl}
           onSampleSelect={setUrl}
           onSubmit={handleAnalyze}
