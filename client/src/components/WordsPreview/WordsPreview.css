@@ -1,16 +1,66 @@
 .words-preview {
-  min-height: 480px;
+  position: relative;
+  min-height: 760px;
+  width: 100%;
   border-radius: 28px;
   border: 1px solid rgba(141, 160, 255, 0.18);
   background:
     radial-gradient(circle at top, rgba(81, 112, 255, 0.14), transparent 30%),
     rgba(5, 7, 18, 0.88);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
-  padding: 28px;
+  padding: 32px;
+  overflow: hidden;
+}
+
+.words-preview__content {
+  transition:
+    opacity 280ms ease,
+    transform 280ms ease;
+  will-change: opacity, transform;
+}
+
+.words-preview__content--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.words-preview__content--hidden {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.words-preview__overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 32px;
+  background: rgba(5, 7, 18, 0.72);
+  backdrop-filter: blur(4px);
+  color: #95a2c4;
+  z-index: 2;
+  transition:
+    opacity 280ms ease,
+    transform 280ms ease;
+  will-change: opacity, transform;
+}
+
+.words-preview__overlay--visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.words-preview__overlay--hidden {
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
 }
 
 .words-preview__empty {
-  min-height: 424px;
+  min-height: 620px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -37,42 +87,38 @@
 
 .words-preview__title {
   margin: 0;
-  font-size: clamp(1.6rem, 3vw, 2.4rem);
+  font-size: clamp(1.7rem, 3vw, 2.7rem);
 }
 
 .words-preview__url {
   margin: 10px auto 0;
-  max-width: 760px;
+  max-width: 960px;
   color: #95a2c4;
   word-break: break-word;
 }
 
-.words-preview__grid {
-  min-height: 300px;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 14px 18px;
-  padding: 12px;
-}
-
-.words-preview__pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 10px 16px;
-  border-radius: 999px;
-  background: rgba(18, 27, 62, 0.92);
-  border: 1px solid rgba(141, 160, 255, 0.18);
-  color: #eef2ff;
-  line-height: 1;
-  white-space: nowrap;
+.words-preview__scene-shell {
+  min-height: 620px;
+  border-radius: 24px;
+  overflow: hidden;
 }
 
 @media (max-width: 768px) {
   .words-preview {
+    min-height: 620px;
     padding: 20px;
     border-radius: 20px;
+  }
+
+  .words-preview__empty {
+    min-height: 500px;
+  }
+
+  .words-preview__scene-shell {
+    min-height: 500px;
+  }
+
+  .words-preview__overlay {
+    padding: 20px;
   }
 }
