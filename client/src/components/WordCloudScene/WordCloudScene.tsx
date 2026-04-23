@@ -3,69 +3,19 @@ import { Text } from '@react-three/drei'
 import { Canvas, useFrame } from '@react-three/fiber'
 import type { Group } from 'three'
 import type { ArticleWord } from '../../modules/articleAnalyzer/articleAnalyzer.types'
+import type {
+  AnchorSlot,
+  DisplayWord,
+  LayoutZone,
+  MeasuredTextBounds,
+  MeasurementSnapshot,
+  PositionedWord,
+  RenderedSnapshot,
+  TroikaTextLike,
+  WordCloudSceneProps,
+} from '../../types/wordCloud'
 import { FloatingWord } from '../FloatingWord/FloatingWord'
 import './WordCloudScene.css'
-
-type WordCloudSceneProps = {
-  words: ArticleWord[]
-}
-
-type DisplayWord = ArticleWord & {
-  id: string
-  fontSize: number
-  color: string
-  motionSeed: number
-}
-
-type MeasuredTextBounds = {
-  width: number
-  height: number
-}
-
-type PositionedWord = DisplayWord & {
-  basePosition: [number, number, number]
-  visualHalfWidth: number
-  visualHalfHeight: number
-  reservedHalfWidth: number
-  reservedHalfHeight: number
-}
-
-type AnchorSlot = {
-  x: number
-  y: number
-  z: number
-  jitterX: number
-  jitterY: number
-  jitterZ: number
-}
-
-type LayoutZone = {
-  minX: number
-  maxX: number
-  minY: number
-  maxY: number
-  minZ: number
-  maxZ: number
-}
-
-type TroikaTextRenderInfoLike = {
-  visibleBounds?: [number, number, number, number]
-  blockBounds?: [number, number, number, number]
-}
-
-type TroikaTextLike = {
-  textRenderInfo?: TroikaTextRenderInfoLike | null
-}
-
-type MeasurementSnapshot = {
-  signature: string
-  measurements: Record<string, MeasuredTextBounds>
-}
-
-type RenderedSnapshot = {
-  signature: string
-  words: PositionedWord[]
-}
 
 const WORD_COLORS = ['#eef3ff', '#d8e3ff', '#b8cbff', '#93afff', '#7697ff']
 

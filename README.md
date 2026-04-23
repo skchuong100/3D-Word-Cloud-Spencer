@@ -1,22 +1,39 @@
 # 3D-Word-Cloud-Spencer
 
-A small full-stack project that analyzes a news article URL and visualizes the extracted keywords as a 3D word cloud.
+A full-stack project that takes a news article URL, extracts the article text on the backend, ranks important terms, and renders the results as an interactive 3D word cloud.
 
 ## Stack
 
-Frontend:
-- React
-- TypeScript
-- Vite
-- React Three Fiber
-- Drei
-- Three.js
+### Frontend
 
-Backend:
-- Python
-- FastAPI
-- Trafilatura
-- scikit-learn
+* React
+* TypeScript
+* Vite
+* React Three Fiber
+* Drei
+* Three.js
+
+### Backend
+
+* Python
+* FastAPI
+* Trafilatura
+* scikit-learn
+
+## Project Structure
+
+```text
+/client   React frontend
+/server   FastAPI backend
+```
+
+Frontend organization:
+
+* `src/containers` for page-level containers
+* `src/components` for reusable UI components
+* `src/modules` for backend communication logic
+* `src/routes` for routing
+* `src/types` for shared frontend type definitions
 
 ## Run the project
 
@@ -27,10 +44,49 @@ chmod +x start-dev.sh
 ./start-dev.sh
 ```
 
-A couple small notes:
+The root script will:
 
-- I would use `start-dev.sh` instead of something like `setup.sh`, because this script is both installing and starting.
-- Since the requirement says macOS only, a bash script is completely fine.
-- Your existing `client/package.json` and `server/requirements.txt` are already enough for this; you do not need a root `package.json`.
+* install frontend dependencies
+* create the backend virtual environment if needed
+* install backend dependencies
+* start both servers concurrently
 
-After adding that, this requirement should be covered.
+After startup:
+
+* Frontend: `http://localhost:5173`
+* Backend: `http://127.0.0.1:8000`
+
+## API
+
+### `POST /analyze`
+
+Request body:
+
+```json
+{
+  "url": "https://example.com/article"
+}
+```
+
+Response shape:
+
+```json
+{
+  "url": "https://example.com/article",
+  "title": "Article title",
+  "words": [
+    {
+      "word": "example",
+      "score": 1.234567,
+      "weight": 0.91
+    }
+  ]
+}
+```
+
+## Notes
+
+* The backend extracts article text and ranks the top weighted terms.
+* The frontend visualizes those terms in a 3D word cloud.
+* The startup script is intended for macOS
+* For local Windows testing, the script can be run through Git Bash.

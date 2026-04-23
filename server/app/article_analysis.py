@@ -6,69 +6,10 @@ import requests
 import trafilatura
 from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS, TfidfVectorizer
 
+from app.stop_words import CUSTOM_STOP_WORDS
+
 MAX_RESULTS = 40
 MIN_EXTRACTED_TEXT_LENGTH = 250
-
-CUSTOM_STOP_WORDS = {
-    "said",
-    "says",
-    "say",
-    "reuters",
-    "ap",
-    "news",
-    "report",
-    "reports",
-    "reporting",
-    "according",
-    "told",
-    "including",
-    "include",
-    "mr",
-    "mrs",
-    "ms",
-    "new",
-    "also",
-    "would",
-    "could",
-    "may",
-    "might",
-    "like",
-    "still",
-    "many",
-    "much",
-    "made",
-    "make",
-    "get",
-    "go",
-    "going",
-    "last",
-    "first",
-    "second",
-    "third",
-    "one",
-    "two",
-    "three",
-    "week",
-    "weeks",
-    "month",
-    "months",
-    "year",
-    "years",
-    "monday",
-    "tuesday",
-    "wednesday",
-    "thursday",
-    "friday",
-    "saturday",
-    "sunday",
-    "release",
-    "released",
-    "story",
-    "stories",
-    "source",
-    "sources",
-    "scheduled",
-}
 
 STOP_WORDS = sorted(set(ENGLISH_STOP_WORDS).union(CUSTOM_STOP_WORDS))
 SENTENCE_SPLIT_PATTERN = re.compile(r"(?<=[.!?])\s+")
