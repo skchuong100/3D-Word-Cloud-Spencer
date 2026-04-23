@@ -5,15 +5,26 @@ import { analyzeArticle } from '../../modules/articleAnalyzer/articleAnalyzer.ap
 import type { AnalyzeArticleResponse } from '../../modules/articleAnalyzer/articleAnalyzer.types'
 import './HomePage.css'
 
-const sampleUrls = [
-  'https://www.reuters.com/',
-  'https://apnews.com/',
-  'https://www.npr.org/',
+const sampleArticles = [
+  {
+    label: 'News Article 1',
+    url: 'https://abcnews.com/US/georgia-wildfire-destroys-dozens-homes-spreads-5000-acres/story?id=132268739',
+  },
+  {
+    label: 'News Article 2',
+    url: 'https://www.npr.org/2026/04/22/nx-s1-5795403/golden-helmet-romania-recovery',
+  },
+  {
+    label: 'News Article 3',
+    url: 'https://www.nbcnews.com/news/us-news/two-university-south-florida-doctoral-students-are-missing-police-say-rcna341385',
+  },
 ]
 
 export function HomePage() {
-  const [url, setUrl] = useState(sampleUrls[0])
+  const [url, setUrl] = useState(sampleArticles[0].url)
   const [analysis, setAnalysis] = useState<AnalyzeArticleResponse | null>(null)
+  const [lastSuccessfulAnalysis, setLastSuccessfulAnalysis] =
+    useState<AnalyzeArticleResponse | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
 
@@ -22,7 +33,6 @@ export function HomePage() {
 
     if (!trimmedUrl) {
       setErrorMessage('Please enter an article URL.')
-      setAnalysis(null)
       return
     }
 
@@ -32,14 +42,15 @@ export function HomePage() {
 
       const response = await analyzeArticle({ url: trimmedUrl })
       setAnalysis(response)
+      setLastSuccessfulAnalysis(response)
     } catch (error) {
       const message =
         error instanceof Error
           ? error.message
           : 'Unable to analyze this article right now.'
 
-      setErrorMessage(message)
       setAnalysis(null)
+      setErrorMessage(message)
     } finally {
       setIsLoading(false)
     }
@@ -51,7 +62,7 @@ export function HomePage() {
         <AnalyzeUrlForm
           url={url}
           isLoading={isLoading}
-          sampleUrls={sampleUrls}
+          sampleArticles={sampleArticles}
           onUrlChange={setUrl}
           onSampleSelect={setUrl}
           onSubmit={handleAnalyze}
@@ -60,7 +71,7 @@ export function HomePage() {
 
       <section className="home-page__visualization">
         <WordsPreview
-          analysis={analysis}
+          analysis={analysis ?? lastSuccessfulAnalysis}
           isLoading={isLoading}
           errorMessage={errorMessage}
         />
