@@ -1,4 +1,5 @@
-import { Suspense, useMemo, useRef } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Text } from '@react-three/drei'
 import { Canvas, useFrame } from '@react-three/fiber'
 import type { Group } from 'three'
 import type { ArticleWord } from '../../modules/articleAnalyzer/articleAnalyzer.types'
@@ -9,12 +10,24 @@ type WordCloudSceneProps = {
   words: ArticleWord[]
 }
 
-type PositionedWord = ArticleWord & {
-  position: [number, number, number]
+type DisplayWord = ArticleWord & {
+  id: string
   fontSize: number
   color: string
-  halfWidth: number
-  halfHeight: number
+  motionSeed: number
+}
+
+type MeasuredTextBounds = {
+  width: number
+  height: number
+}
+
+type PositionedWord = DisplayWord & {
+  basePosition: [number, number, number]
+  visualHalfWidth: number
+  visualHalfHeight: number
+  reservedHalfWidth: number
+  reservedHalfHeight: number
 }
 
 type AnchorSlot = {
@@ -37,24 +50,37 @@ type LayoutZone = {
 
 const WORD_COLORS = ['#eef3ff', '#d8e3ff', '#b8cbff', '#93afff', '#7697ff']
 
+const STAGE_LIMITS = {
+  minX: -10.8,
+  maxX: 10.8,
+  minY: -3.8,
+  maxY: 3.8,
+  minZ: -1.18,
+  maxZ: 0.12,
+}
+
 const ANCHOR_SLOTS: AnchorSlot[] = [
-  { x: 0, y: 0.15, z: 0.2, jitterX: 0.45, jitterY: 0.22, jitterZ: 0.12 },
-  { x: -3.35, y: -1.05, z: -0.25, jitterX: 0.72, jitterY: 0.3, jitterZ: 0.18 },
-  { x: 3.2, y: 0.9, z: -0.35, jitterX: 0.72, jitterY: 0.32, jitterZ: 0.18 },
-  { x: -4.9, y: 1.55, z: -0.85, jitterX: 0.68, jitterY: 0.28, jitterZ: 0.16 },
-  { x: 4.85, y: -1.45, z: -0.85, jitterX: 0.68, jitterY: 0.3, jitterZ: 0.16 },
-  { x: 0.1, y: 1.95, z: -1.1, jitterX: 0.58, jitterY: 0.2, jitterZ: 0.16 },
-  { x: 0.15, y: -2.05, z: -1.1, jitterX: 0.58, jitterY: 0.2, jitterZ: 0.16 },
-  { x: -5.9, y: -0.15, z: -1.05, jitterX: 0.52, jitterY: 0.24, jitterZ: 0.14 },
-  { x: 5.9, y: 0.15, z: -1.05, jitterX: 0.52, jitterY: 0.24, jitterZ: 0.14 },
+  { x: 0, y: 0.08, z: 0.04, jitterX: 0.24, jitterY: 0.16, jitterZ: 0.05 },
+  { x: -6.35, y: -1.2, z: -0.18, jitterX: 0.26, jitterY: 0.16, jitterZ: 0.05 },
+  { x: 6.35, y: 1.2, z: -0.18, jitterX: 0.26, jitterY: 0.16, jitterZ: 0.05 },
+  { x: -8.2, y: 2.05, z: -0.34, jitterX: 0.22, jitterY: 0.14, jitterZ: 0.05 },
+  { x: 8.2, y: -2.05, z: -0.34, jitterX: 0.22, jitterY: 0.14, jitterZ: 0.05 },
+  { x: 0, y: 2.6, z: -0.46, jitterX: 0.24, jitterY: 0.12, jitterZ: 0.05 },
+  { x: 0, y: -2.6, z: -0.46, jitterX: 0.24, jitterY: 0.12, jitterZ: 0.05 },
+  { x: -9.55, y: 0.4, z: -0.56, jitterX: 0.18, jitterY: 0.12, jitterZ: 0.05 },
+  { x: 9.55, y: -0.4, z: -0.56, jitterX: 0.18, jitterY: 0.12, jitterZ: 0.05 },
 ]
 
 const LAYOUT_ZONES: LayoutZone[] = [
-  { minX: -6.4, maxX: -2.5, minY: -2.3, maxY: 2.2, minZ: -1.45, maxZ: -0.25 },
-  { minX: 2.5, maxX: 6.4, minY: -2.3, maxY: 2.2, minZ: -1.45, maxZ: -0.25 },
-  { minX: -4.8, maxX: 4.8, minY: 1.15, maxY: 2.45, minZ: -1.6, maxZ: -0.45 },
-  { minX: -4.8, maxX: 4.8, minY: -2.55, maxY: -1.15, minZ: -1.6, maxZ: -0.45 },
-  { minX: -6.8, maxX: 6.8, minY: -2.45, maxY: 2.45, minZ: -2, maxZ: -1.1 },
+  { minX: -10.2, maxX: -5.8, minY: 1.25, maxY: 3.35, minZ: -0.92, maxZ: -0.24 },
+  { minX: -10.2, maxX: -5.8, minY: -3.35, maxY: -1.25, minZ: -0.92, maxZ: -0.24 },
+  { minX: -5.1, maxX: 5.1, minY: 1.7, maxY: 3.45, minZ: -0.96, maxZ: -0.24 },
+  { minX: -5.1, maxX: 5.1, minY: -3.45, maxY: -1.7, minZ: -0.96, maxZ: -0.24 },
+  { minX: 5.8, maxX: 10.2, minY: 1.25, maxY: 3.35, minZ: -0.92, maxZ: -0.24 },
+  { minX: 5.8, maxX: 10.2, minY: -3.35, maxY: -1.25, minZ: -0.92, maxZ: -0.24 },
+  { minX: -10.3, maxX: -6.4, minY: -0.92, maxY: 0.98, minZ: -1.02, maxZ: -0.34 },
+  { minX: 6.4, maxX: 10.3, minY: -0.98, maxY: 0.92, minZ: -1.02, maxZ: -0.34 },
+  { minX: -3.8, maxX: 3.8, minY: -0.98, maxY: 0.98, minZ: -0.16, maxZ: 0.08 },
 ]
 
 function createSeed(value: string) {
@@ -93,36 +119,86 @@ function clamp(value: number, min: number, max: number) {
 }
 
 function createFontSize(weight: number) {
-  return 0.34 + weight * 0.92
+  return 0.22 + weight * 0.56
 }
 
-function estimateHalfWidth(word: string, fontSize: number) {
-  const phraseBoost = word.includes(' ') ? 1.12 : 1
-  return Math.max(0.62, word.length * fontSize * 0.155 * phraseBoost)
+function getMotionRange(weight: number) {
+  return {
+    x: 0.026 + (1 - weight) * 0.02,
+    y: 0.018 + (1 - weight) * 0.016,
+  }
 }
 
-function estimateHalfHeight(fontSize: number) {
-  return Math.max(0.34, fontSize * 0.48)
+function createDisplayWords(words: ArticleWord[]) {
+  const seedSource = words
+    .map((item) => `${item.word}:${item.weight}:${item.score}`)
+    .join('|')
+
+  const random = createRandom(createSeed(seedSource))
+
+  return [...words]
+    .sort((left, right) => right.weight - left.weight)
+    .map((item) => ({
+      ...item,
+      id: `${item.word}:${item.score}:${item.weight}`,
+      fontSize: createFontSize(item.weight),
+      color: getColor(item.weight),
+      motionSeed: random(),
+    }))
+}
+
+function getWordSignature(words: DisplayWord[]) {
+  return words.map((item) => item.id).join('|')
+}
+
+function getMeasuredBounds(troika: any): MeasuredTextBounds | null {
+  const bounds = troika?.textRenderInfo?.visibleBounds ?? troika?.textRenderInfo?.blockBounds
+
+  if (!Array.isArray(bounds) || bounds.length !== 4) {
+    return null
+  }
+
+  const [minX, minY, maxX, maxY] = bounds
+  const width = Math.max(Math.abs(maxX - minX), 0.01)
+  const height = Math.max(Math.abs(maxY - minY), 0.01)
+
+  return { width, height }
+}
+
+function createReservedHalfWidth(
+  word: string,
+  visualWidth: number,
+  weight: number,
+) {
+  const motion = getMotionRange(weight)
+  const hoverPadding = visualWidth * 0.04
+  const phrasePadding = word.includes(' ') ? 0.18 : 0.1
+  const lengthPadding = Math.min(word.length * 0.008, 0.18)
+
+  return visualWidth / 2 + motion.x + hoverPadding + phrasePadding + lengthPadding + 0.2
+}
+
+function createReservedHalfHeight(visualHeight: number, weight: number) {
+  const motion = getMotionRange(weight)
+  const hoverPadding = visualHeight * 0.04
+
+  return visualHeight / 2 + motion.y + hoverPadding + 0.18
 }
 
 function collidesWithPlacedWords(
   candidate: [number, number, number],
-  halfWidth: number,
-  halfHeight: number,
+  reservedHalfWidth: number,
+  reservedHalfHeight: number,
   placedWords: PositionedWord[],
 ) {
   return placedWords.some((placedWord) => {
-    const dx = Math.abs(candidate[0] - placedWord.position[0])
-    const dy = Math.abs(candidate[1] - placedWord.position[1])
-    const dz = Math.abs(candidate[2] - placedWord.position[2])
+    const dx = Math.abs(candidate[0] - placedWord.basePosition[0])
+    const dy = Math.abs(candidate[1] - placedWord.basePosition[1])
 
-    const sameDepthMultiplier = dz < 0.95 ? 1.18 : 0.9
-    const minX =
-      (halfWidth + placedWord.halfWidth) * sameDepthMultiplier + 0.22
-    const minY =
-      (halfHeight + placedWord.halfHeight) * sameDepthMultiplier + 0.12
+    const minX = reservedHalfWidth + placedWord.reservedHalfWidth + 0.06
+    const minY = reservedHalfHeight + placedWord.reservedHalfHeight + 0.04
 
-    return dx < minX && dy < minY && dz < 1.8
+    return dx < minX && dy < minY
   })
 }
 
@@ -142,97 +218,307 @@ function buildZoneCandidate(zone: LayoutZone, random: () => number) {
   ] as [number, number, number]
 }
 
-function getFallbackCandidate(index: number, random: () => number) {
-  const laneY = [1.85, 1.2, 0.3, -0.65, -1.55][index % 5]
-  const laneX = -6.2 + ((index * 1.93) % 12.4)
+function buildGridCandidates(index: number, random: () => number) {
+  const rows = [3.1, 2.3, 1.5, 0.7, -0.1, -0.9, -1.7, -2.5, -3.3]
+  const columns = [-9.8, -7.35, -4.9, -2.45, 0, 2.45, 4.9, 7.35, 9.8]
+  const candidates: [number, number, number][] = []
+
+  for (let offset = 0; offset < rows.length; offset += 1) {
+    const rowIndex = (index + offset) % rows.length
+    const reverse = rowIndex % 2 === 1
+    const orderedColumns = reverse ? [...columns].reverse() : columns
+
+    for (let columnIndex = 0; columnIndex < orderedColumns.length; columnIndex += 1) {
+      candidates.push([
+        orderedColumns[columnIndex] + (random() * 2 - 1) * 0.08,
+        rows[rowIndex] + (random() * 2 - 1) * 0.06,
+        -0.7 + (random() * 2 - 1) * 0.06,
+      ])
+    }
+  }
+
+  return candidates
+}
+
+function choosePosition(
+  index: number,
+  reservedHalfWidth: number,
+  reservedHalfHeight: number,
+  placedWords: PositionedWord[],
+  random: () => number,
+) {
+  if (index < ANCHOR_SLOTS.length) {
+    const slot = ANCHOR_SLOTS[index]
+
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      const candidate = buildAnchorCandidate(slot, random)
+
+      if (
+        !collidesWithPlacedWords(
+          candidate,
+          reservedHalfWidth,
+          reservedHalfHeight,
+          placedWords,
+        )
+      ) {
+        return candidate
+      }
+    }
+  }
+
+  const preferredZone = LAYOUT_ZONES[index % LAYOUT_ZONES.length]
+
+  for (let attempt = 0; attempt < 260; attempt += 1) {
+    const zone =
+      attempt < 130
+        ? preferredZone
+        : LAYOUT_ZONES[(index + attempt) % LAYOUT_ZONES.length]
+
+    const candidate = buildZoneCandidate(zone, random)
+
+    if (
+      !collidesWithPlacedWords(
+        candidate,
+        reservedHalfWidth,
+        reservedHalfHeight,
+        placedWords,
+      )
+    ) {
+      return candidate
+    }
+  }
+
+  const gridCandidates = buildGridCandidates(index, random)
+
+  for (const candidate of gridCandidates) {
+    if (
+      !collidesWithPlacedWords(
+        candidate,
+        reservedHalfWidth,
+        reservedHalfHeight,
+        placedWords,
+      )
+    ) {
+      return candidate
+    }
+  }
 
   return [
-    laneX + (random() * 2 - 1) * 0.25,
-    laneY + (random() * 2 - 1) * 0.16,
-    -1.4 + (random() * 2 - 1) * 0.12,
+    clamp(
+      -9.8 + ((index * 1.87) % 19.6),
+      STAGE_LIMITS.minX,
+      STAGE_LIMITS.maxX,
+    ),
+    clamp(
+      [2.95, 2.15, 1.35, 0.55, -0.25, -1.05, -1.85, -2.65, -3.35][index % 9],
+      STAGE_LIMITS.minY,
+      STAGE_LIMITS.maxY,
+    ),
+    -0.7,
   ] as [number, number, number]
 }
 
-function buildPositionedWords(words: ArticleWord[]): PositionedWord[] {
-  const seedSource = words
-    .map((item) => `${item.word}:${item.weight}:${item.score}`)
-    .join('|')
+function resolveResidualOverlaps(words: PositionedWord[]) {
+  const resolved = words.map((item) => ({
+    ...item,
+    basePosition: [...item.basePosition] as [number, number, number],
+  }))
 
+  for (let pass = 0; pass < 28; pass += 1) {
+    let moved = false
+
+    for (let leftIndex = 0; leftIndex < resolved.length; leftIndex += 1) {
+      for (
+        let rightIndex = leftIndex + 1;
+        rightIndex < resolved.length;
+        rightIndex += 1
+      ) {
+        const left = resolved[leftIndex]
+        const right = resolved[rightIndex]
+
+        const dx = right.basePosition[0] - left.basePosition[0]
+        const dy = right.basePosition[1] - left.basePosition[1]
+        const absDx = Math.abs(dx)
+        const absDy = Math.abs(dy)
+
+        const minX = left.reservedHalfWidth + right.reservedHalfWidth
+        const minY = left.reservedHalfHeight + right.reservedHalfHeight
+
+        if (absDx >= minX || absDy >= minY) {
+          continue
+        }
+
+        const overlapX = minX - absDx
+        const overlapY = minY - absDy
+        const leftShiftRatio = left.weight >= right.weight ? 0.16 : 0.84
+        const rightShiftRatio = left.weight >= right.weight ? 0.84 : 0.16
+
+        if (overlapX < overlapY) {
+          const direction =
+            absDx < 0.001
+              ? (leftIndex + rightIndex) % 2 === 0
+                ? -1
+                : 1
+              : Math.sign(dx)
+          const shift = overlapX / 2 + 0.04
+
+          left.basePosition[0] = clamp(
+            left.basePosition[0] - direction * shift * leftShiftRatio,
+            STAGE_LIMITS.minX,
+            STAGE_LIMITS.maxX,
+          )
+          right.basePosition[0] = clamp(
+            right.basePosition[0] + direction * shift * rightShiftRatio,
+            STAGE_LIMITS.minX,
+            STAGE_LIMITS.maxX,
+          )
+        } else {
+          const direction =
+            absDy < 0.001
+              ? (leftIndex + rightIndex) % 2 === 0
+                ? -1
+                : 1
+              : Math.sign(dy)
+          const shift = overlapY / 2 + 0.04
+
+          left.basePosition[1] = clamp(
+            left.basePosition[1] - direction * shift * leftShiftRatio,
+            STAGE_LIMITS.minY,
+            STAGE_LIMITS.maxY,
+          )
+          right.basePosition[1] = clamp(
+            right.basePosition[1] + direction * shift * rightShiftRatio,
+            STAGE_LIMITS.minY,
+            STAGE_LIMITS.maxY,
+          )
+        }
+
+        moved = true
+      }
+    }
+
+    if (!moved) {
+      break
+    }
+  }
+
+  return resolved
+}
+
+function buildPositionedWords(
+  words: DisplayWord[],
+  measurements: Record<string, MeasuredTextBounds>,
+) {
+  const seedSource = words.map((item) => item.id).join('|')
   const random = createRandom(createSeed(seedSource))
   const positionedWords: PositionedWord[] = []
-  const sortedWords = [...words].sort((left, right) => right.weight - left.weight)
 
-  sortedWords.forEach((item, index) => {
-    const fontSize = createFontSize(item.weight)
-    const halfWidth = estimateHalfWidth(item.word, fontSize)
-    const halfHeight = estimateHalfHeight(fontSize)
+  for (let index = 0; index < words.length; index += 1) {
+    const item = words[index]
+    const measured = measurements[item.id]
+    const visualHalfWidth = measured.width / 2
+    const visualHalfHeight = measured.height / 2
+    const reservedHalfWidth = createReservedHalfWidth(
+      item.word,
+      measured.width,
+      item.weight,
+    )
+    const reservedHalfHeight = createReservedHalfHeight(
+      measured.height,
+      item.weight,
+    )
 
-    let chosenPosition: [number, number, number] | null = null
-
-    if (index < ANCHOR_SLOTS.length) {
-      const slot = ANCHOR_SLOTS[index]
-
-      for (let attempt = 0; attempt < 40; attempt += 1) {
-        const candidate = buildAnchorCandidate(slot, random)
-
-        if (
-          !collidesWithPlacedWords(
-            candidate,
-            halfWidth,
-            halfHeight,
-            positionedWords,
-          )
-        ) {
-          chosenPosition = candidate
-          break
-        }
-      }
-    }
-
-    if (!chosenPosition) {
-      const preferredZone = LAYOUT_ZONES[index % LAYOUT_ZONES.length]
-
-      for (let attempt = 0; attempt < 90; attempt += 1) {
-        const zone =
-          attempt < 45
-            ? preferredZone
-            : LAYOUT_ZONES[(index + attempt) % LAYOUT_ZONES.length]
-
-        const candidate = buildZoneCandidate(zone, random)
-
-        if (
-          !collidesWithPlacedWords(
-            candidate,
-            halfWidth,
-            halfHeight,
-            positionedWords,
-          )
-        ) {
-          chosenPosition = candidate
-          break
-        }
-      }
-    }
-
-    if (!chosenPosition) {
-      chosenPosition = getFallbackCandidate(index, random)
-    }
+    const basePosition = choosePosition(
+      index,
+      reservedHalfWidth,
+      reservedHalfHeight,
+      positionedWords,
+      random,
+    )
 
     positionedWords.push({
       ...item,
-      position: [
-        clamp(chosenPosition[0], -6.9, 6.9),
-        clamp(chosenPosition[1], -2.75, 2.75),
-        clamp(chosenPosition[2], -2.1, 0.4),
+      basePosition: [
+        clamp(basePosition[0], STAGE_LIMITS.minX, STAGE_LIMITS.maxX),
+        clamp(basePosition[1], STAGE_LIMITS.minY, STAGE_LIMITS.maxY),
+        clamp(basePosition[2], STAGE_LIMITS.minZ, STAGE_LIMITS.maxZ),
       ],
-      fontSize,
-      color: getColor(item.weight),
-      halfWidth,
-      halfHeight,
+      visualHalfWidth,
+      visualHalfHeight,
+      reservedHalfWidth,
+      reservedHalfHeight,
     })
-  })
+  }
 
-  return positionedWords
+  return resolveResidualOverlaps(positionedWords)
+}
+
+function MeasurementLayer({
+  words,
+  signature,
+  onMeasured,
+}: {
+  words: DisplayWord[]
+  signature: string
+  onMeasured: (nextMeasurements: Record<string, MeasuredTextBounds>) => void
+}) {
+  const measurementsRef = useRef<Record<string, MeasuredTextBounds>>({})
+  const emittedSignatureRef = useRef('')
+
+  useEffect(() => {
+    measurementsRef.current = {}
+    emittedSignatureRef.current = ''
+  }, [signature])
+
+  const handleSync = useCallback(
+    (wordId: string, troika: any) => {
+      const bounds = getMeasuredBounds(troika)
+
+      if (!bounds) {
+        return
+      }
+
+      measurementsRef.current[wordId] = bounds
+
+      if (Object.keys(measurementsRef.current).length !== words.length) {
+        return
+      }
+
+      const nextMeasurements = { ...measurementsRef.current }
+      const nextSignature = JSON.stringify(nextMeasurements)
+
+      if (nextSignature === emittedSignatureRef.current) {
+        return
+      }
+
+      emittedSignatureRef.current = nextSignature
+      onMeasured(nextMeasurements)
+    },
+    [onMeasured, words.length],
+  )
+
+  return (
+    <group position={[0, 0, -40]}>
+      {words.map((item) => (
+        <Text
+          key={item.id}
+          fontSize={item.fontSize}
+          anchorX="center"
+          anchorY="middle"
+          maxWidth={10}
+          textAlign="center"
+          fillOpacity={0}
+          outlineWidth={0}
+          depthOffset={-100}
+          onSync={(troika) => {
+            handleSync(item.id, troika)
+          }}
+        >
+          {item.word}
+        </Text>
+      ))}
+    </group>
+  )
 }
 
 function SceneGroup({ words }: { words: PositionedWord[] }) {
@@ -244,28 +530,28 @@ function SceneGroup({ words }: { words: PositionedWord[] }) {
     }
 
     const elapsed = state.clock.elapsedTime
-    groupRef.current.rotation.y = Math.sin(elapsed * 0.16) * 0.035
-    groupRef.current.rotation.x = Math.cos(elapsed * 0.12) * 0.012
-    groupRef.current.position.y = Math.sin(elapsed * 0.18) * 0.04
+    groupRef.current.rotation.y = Math.sin(elapsed * 0.08) * 0.016
+    groupRef.current.rotation.x = Math.cos(elapsed * 0.06) * 0.007
   })
 
   return (
     <>
-      <ambientLight intensity={1.45} />
-      <directionalLight position={[0, 4.5, 6]} intensity={1.1} />
-      <pointLight position={[-5, 1.5, 4]} intensity={0.7} color="#4e73ff" />
-      <pointLight position={[5, -1.5, 4]} intensity={0.55} color="#7a62ff" />
-      <fog attach="fog" args={['#050712', 12, 19]} />
+      <ambientLight intensity={1.4} />
+      <directionalLight position={[0, 4.5, 6]} intensity={1.05} />
+      <pointLight position={[-6, 1.5, 4]} intensity={0.65} color="#4e73ff" />
+      <pointLight position={[6, -1.5, 4]} intensity={0.5} color="#7a62ff" />
+      <fog attach="fog" args={['#050712', 14, 22]} />
 
       <group ref={groupRef}>
         {words.map((item) => (
           <FloatingWord
-            key={item.word}
+            key={item.id}
             word={item.word}
             weight={item.weight}
-            position={item.position}
+            basePosition={item.basePosition}
             fontSize={item.fontSize}
             color={item.color}
+            motionSeed={item.motionSeed}
           />
         ))}
       </group>
@@ -274,14 +560,35 @@ function SceneGroup({ words }: { words: PositionedWord[] }) {
 }
 
 export function WordCloudScene({ words }: WordCloudSceneProps) {
-  const positionedWords = useMemo(() => buildPositionedWords(words), [words])
+  const displayWords = useMemo(() => createDisplayWords(words), [words])
+  const wordSignature = useMemo(() => getWordSignature(displayWords), [displayWords])
+  const [measurements, setMeasurements] = useState<Record<string, MeasuredTextBounds>>({})
+
+  useEffect(() => {
+    setMeasurements({})
+  }, [wordSignature])
+
+  const areMeasurementsReady = displayWords.every((item) => measurements[item.id])
+
+  const positionedWords = useMemo(() => {
+    if (!areMeasurementsReady) {
+      return []
+    }
+
+    return buildPositionedWords(displayWords, measurements)
+  }, [areMeasurementsReady, displayWords, measurements])
 
   return (
     <div className="word-cloud-scene">
-      <Canvas camera={{ position: [0, 0, 10.6], fov: 40 }} dpr={[1, 1.5]}>
+      <Canvas camera={{ position: [0, 0, 14.8], fov: 34 }} dpr={[1, 1.5]}>
         <color attach="background" args={['#050712']} />
         <Suspense fallback={null}>
-          <SceneGroup words={positionedWords} />
+          <MeasurementLayer
+            words={displayWords}
+            signature={wordSignature}
+            onMeasured={setMeasurements}
+          />
+          {areMeasurementsReady ? <SceneGroup words={positionedWords} /> : null}
         </Suspense>
       </Canvas>
     </div>
