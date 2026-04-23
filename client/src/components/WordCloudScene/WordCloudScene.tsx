@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useCallback, useMemo, useRef, useState } from 'react'
 import { Text } from '@react-three/drei'
 import { Canvas, useFrame } from '@react-three/fiber'
 import type { Group } from 'three'
@@ -46,6 +46,25 @@ type LayoutZone = {
   maxY: number
   minZ: number
   maxZ: number
+}
+
+type TroikaTextRenderInfoLike = {
+  visibleBounds?: [number, number, number, number]
+  blockBounds?: [number, number, number, number]
+}
+
+type TroikaTextLike = {
+  textRenderInfo?: TroikaTextRenderInfoLike | null
+}
+
+type MeasurementSnapshot = {
+  signature: string
+  measurements: Record<string, MeasuredTextBounds>
+}
+
+type RenderedSnapshot = {
+  signature: string
+  words: PositionedWord[]
 }
 
 const WORD_COLORS = ['#eef3ff', '#d8e3ff', '#b8cbff', '#93afff', '#7697ff']
@@ -151,7 +170,7 @@ function getWordSignature(words: DisplayWord[]) {
   return words.map((item) => item.id).join('|')
 }
 
-function getMeasuredBounds(troika: any): MeasuredTextBounds | null {
+function getMeasuredBounds(troika: TroikaTextLike): MeasuredTextBounds | null {
   const bounds = troika?.textRenderInfo?.visibleBounds ?? troika?.textRenderInfo?.blockBounds
 
   if (!Array.isArray(bounds) || bounds.length !== 4) {
@@ -460,18 +479,13 @@ function MeasurementLayer({
 }: {
   words: DisplayWord[]
   signature: string
-  onMeasured: (nextMeasurements: Record<string, MeasuredTextBounds>) => void
+  onMeasured: (nextMeasurements: MeasurementSnapshot) => void
 }) {
   const measurementsRef = useRef<Record<string, MeasuredTextBounds>>({})
   const emittedSignatureRef = useRef('')
 
-  useEffect(() => {
-    measurementsRef.current = {}
-    emittedSignatureRef.current = ''
-  }, [signature])
-
   const handleSync = useCallback(
-    (wordId: string, troika: any) => {
+    (wordId: string, troika: TroikaTextLike) => {
       const bounds = getMeasuredBounds(troika)
 
       if (!bounds) {
@@ -485,16 +499,20 @@ function MeasurementLayer({
       }
 
       const nextMeasurements = { ...measurementsRef.current }
-      const nextSignature = JSON.stringify(nextMeasurements)
+      const nextEmissionSignature = JSON.stringify(nextMeasurements)
 
-      if (nextSignature === emittedSignatureRef.current) {
+      if (nextEmissionSignature === emittedSignatureRef.current) {
         return
       }
 
-      emittedSignatureRef.current = nextSignature
-      onMeasured(nextMeasurements)
+      emittedSignatureRef.current = nextEmissionSignature
+
+      onMeasured({
+        signature,
+        measurements: nextMeasurements,
+      })
     },
-    [onMeasured, words.length],
+    [onMeasured, signature, words.length],
   )
 
   return (
@@ -511,7 +529,7 @@ function MeasurementLayer({
           outlineWidth={0}
           depthOffset={-100}
           onSync={(troika) => {
-            handleSync(item.id, troika)
+            handleSync(item.id, troika as TroikaTextLike)
           }}
         >
           {item.word}
@@ -562,9 +580,7 @@ function SceneGroup({ words }: { words: PositionedWord[] }) {
 export function WordCloudScene({ words }: WordCloudSceneProps) {
   const articleSignature = useMemo(
     () =>
-      words
-        .map((item) => `${item.word}:${item.weight}:${item.score}`)
-        .join('|'),
+      words.map((item) => `${item.word}:${item.weight}:${item.score}`).join('|'),
     [words],
   )
 
@@ -578,23 +594,40 @@ export function WordCloudScene({ words }: WordCloudSceneProps) {
     [displayWords],
   )
 
-  const [measurements, setMeasurements] = useState<Record<string, MeasuredTextBounds>>({})
-  const [renderedWords, setRenderedWords] = useState<PositionedWord[]>([])
 
-  useEffect(() => {
-    setMeasurements({})
-  }, [wordSignature])
+  const [renderedSnapshot, setRenderedSnapshot] = useState<RenderedSnapshot>({
+    signature: '',
+    words: [],
+  })
 
-  const areMeasurementsReady = displayWords.every((item) => measurements[item.id])
+  const handleMeasured = useCallback(
+    (nextSnapshot: MeasurementSnapshot) => {
 
-  useEffect(() => {
-    if (!areMeasurementsReady) {
-      return
-    }
+      const areAllMeasurementsReady = displayWords.every(
+        (item) => nextSnapshot.measurements[item.id],
+      )
 
-    const nextWords = buildPositionedWords(displayWords, measurements)
-    setRenderedWords(nextWords)
-  }, [areMeasurementsReady, displayWords, measurements])
+      if (!areAllMeasurementsReady) {
+        return
+      }
+
+      const nextWords = buildPositionedWords(
+        displayWords,
+        nextSnapshot.measurements,
+      )
+
+      setRenderedSnapshot({
+        signature: nextSnapshot.signature,
+        words: nextWords,
+      })
+    },
+    [displayWords],
+  )
+
+  const renderedWords =
+    renderedSnapshot.signature === wordSignature
+      ? renderedSnapshot.words
+      : renderedSnapshot.words
 
   return (
     <div className="word-cloud-scene">
@@ -605,7 +638,7 @@ export function WordCloudScene({ words }: WordCloudSceneProps) {
             key={wordSignature}
             words={displayWords}
             signature={wordSignature}
-            onMeasured={setMeasurements}
+            onMeasured={handleMeasured}
           />
           {renderedWords.length > 0 ? <SceneGroup words={renderedWords} /> : null}
         </Suspense>

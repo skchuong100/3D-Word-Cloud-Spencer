@@ -14,6 +14,8 @@ const sampleUrls = [
 export function HomePage() {
   const [url, setUrl] = useState(sampleUrls[0])
   const [analysis, setAnalysis] = useState<AnalyzeArticleResponse | null>(null)
+  const [lastSuccessfulAnalysis, setLastSuccessfulAnalysis] =
+    useState<AnalyzeArticleResponse | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
 
@@ -22,7 +24,6 @@ export function HomePage() {
 
     if (!trimmedUrl) {
       setErrorMessage('Please enter an article URL.')
-      setAnalysis(null)
       return
     }
 
@@ -32,14 +33,15 @@ export function HomePage() {
 
       const response = await analyzeArticle({ url: trimmedUrl })
       setAnalysis(response)
+      setLastSuccessfulAnalysis(response)
     } catch (error) {
       const message =
         error instanceof Error
           ? error.message
           : 'Unable to analyze this article right now.'
 
-      setErrorMessage(message)
       setAnalysis(null)
+      setErrorMessage(message)
     } finally {
       setIsLoading(false)
     }
@@ -60,7 +62,7 @@ export function HomePage() {
 
       <section className="home-page__visualization">
         <WordsPreview
-          analysis={analysis}
+          analysis={analysis ?? lastSuccessfulAnalysis}
           isLoading={isLoading}
           errorMessage={errorMessage}
         />
