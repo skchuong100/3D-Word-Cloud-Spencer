@@ -129,7 +129,7 @@ function getMotionRange(weight: number) {
   }
 }
 
-function createDisplayWords(words: ArticleWord[]) {
+function createDisplayWords(words: ArticleWord[], articleSignature: string) {
   const seedSource = words
     .map((item) => `${item.word}:${item.weight}:${item.score}`)
     .join('|')
@@ -138,9 +138,9 @@ function createDisplayWords(words: ArticleWord[]) {
 
   return [...words]
     .sort((left, right) => right.weight - left.weight)
-    .map((item) => ({
+    .map((item, index) => ({
       ...item,
-      id: `${item.word}:${item.score}:${item.weight}`,
+      id: `${articleSignature}:${index}:${item.word}`,
       fontSize: createFontSize(item.weight),
       color: getColor(item.weight),
       motionSeed: random(),
@@ -560,9 +560,26 @@ function SceneGroup({ words }: { words: PositionedWord[] }) {
 }
 
 export function WordCloudScene({ words }: WordCloudSceneProps) {
-  const displayWords = useMemo(() => createDisplayWords(words), [words])
-  const wordSignature = useMemo(() => getWordSignature(displayWords), [displayWords])
+  const articleSignature = useMemo(
+    () =>
+      words
+        .map((item) => `${item.word}:${item.weight}:${item.score}`)
+        .join('|'),
+    [words],
+  )
+
+  const displayWords = useMemo(
+    () => createDisplayWords(words, articleSignature),
+    [words, articleSignature],
+  )
+
+  const wordSignature = useMemo(
+    () => getWordSignature(displayWords),
+    [displayWords],
+  )
+
   const [measurements, setMeasurements] = useState<Record<string, MeasuredTextBounds>>({})
+  const [renderedWords, setRenderedWords] = useState<PositionedWord[]>([])
 
   useEffect(() => {
     setMeasurements({})
@@ -570,12 +587,13 @@ export function WordCloudScene({ words }: WordCloudSceneProps) {
 
   const areMeasurementsReady = displayWords.every((item) => measurements[item.id])
 
-  const positionedWords = useMemo(() => {
+  useEffect(() => {
     if (!areMeasurementsReady) {
-      return []
+      return
     }
 
-    return buildPositionedWords(displayWords, measurements)
+    const nextWords = buildPositionedWords(displayWords, measurements)
+    setRenderedWords(nextWords)
   }, [areMeasurementsReady, displayWords, measurements])
 
   return (
@@ -584,11 +602,12 @@ export function WordCloudScene({ words }: WordCloudSceneProps) {
         <color attach="background" args={['#050712']} />
         <Suspense fallback={null}>
           <MeasurementLayer
+            key={wordSignature}
             words={displayWords}
             signature={wordSignature}
             onMeasured={setMeasurements}
           />
-          {areMeasurementsReady ? <SceneGroup words={positionedWords} /> : null}
+          {renderedWords.length > 0 ? <SceneGroup words={renderedWords} /> : null}
         </Suspense>
       </Canvas>
     </div>
