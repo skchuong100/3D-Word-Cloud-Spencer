@@ -16,7 +16,7 @@ const sampleArticles = [
   },
   {
     label: 'News Article 3',
-    url: 'https://www.nbcnews.com/news/us-news/two-university-south-florida-doctoral-students-are-missing-police-say-rcna341385',
+    url: 'https://abcnews.com/Technology/nasa-administrator-artemis-ii-1st-step-moon-base/story?id=131983922',
   },
 ]
 
