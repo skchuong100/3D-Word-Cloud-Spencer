@@ -13,11 +13,20 @@
 }
 
 .words-preview__content {
-  transition: opacity 180ms ease;
+  transition:
+    opacity 280ms ease,
+    transform 280ms ease;
+  will-change: opacity, transform;
 }
 
-.words-preview__content--covered {
-  opacity: 0.12;
+.words-preview__content--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.words-preview__content--hidden {
+  opacity: 0;
+  transform: translateY(10px);
 }
 
 .words-preview__overlay {
@@ -32,6 +41,22 @@
   backdrop-filter: blur(4px);
   color: #95a2c4;
   z-index: 2;
+  transition:
+    opacity 280ms ease,
+    transform 280ms ease;
+  will-change: opacity, transform;
+}
+
+.words-preview__overlay--visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.words-preview__overlay--hidden {
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
 }
 
 .words-preview__empty {

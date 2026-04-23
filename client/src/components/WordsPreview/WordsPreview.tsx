@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { AnalyzeArticleResponse } from '../../modules/articleAnalyzer/articleAnalyzer.types'
 import { WordCloudScene } from '../WordCloudScene/WordCloudScene'
 import './WordsPreview.css'
@@ -9,83 +9,145 @@ type WordsPreviewProps = {
   errorMessage: string
 }
 
+type OverlayState = 'loading' | 'error' | null
+
+const FADE_DURATION_MS = 280
+
 export function WordsPreview({
   analysis,
   isLoading,
   errorMessage,
 }: WordsPreviewProps) {
-  const [lastSuccessfulAnalysis, setLastSuccessfulAnalysis] =
+  const [displayedAnalysis, setDisplayedAnalysis] =
     useState<AnalyzeArticleResponse | null>(analysis)
+  const [overlayState, setOverlayState] = useState<OverlayState>(null)
+  const [isContentVisible, setIsContentVisible] = useState(Boolean(analysis))
+
+  const timeoutRef = useRef<number | null>(null)
+  const animationFrameRef = useRef<number | null>(null)
 
   useEffect(() => {
-    if (analysis) {
-      setLastSuccessfulAnalysis(analysis)
+    return () => {
+      if (timeoutRef.current !== null) {
+        window.clearTimeout(timeoutRef.current)
+      }
+
+      if (animationFrameRef.current !== null) {
+        window.cancelAnimationFrame(animationFrameRef.current)
+      }
     }
-  }, [analysis])
+  }, [])
 
-  const activeAnalysis = analysis ?? lastSuccessfulAnalysis
-  const hasScene = Boolean(activeAnalysis)
-  const showLoadingOverlay = isLoading
-  const showErrorOverlay = !isLoading && Boolean(errorMessage)
-  const showOverlay = showLoadingOverlay || showErrorOverlay
+  useEffect(() => {
+    if (timeoutRef.current !== null) {
+      window.clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
+    }
 
-  if (!hasScene && !isLoading && errorMessage) {
-    return (
-      <section className="words-preview">
-        <div className="words-preview__empty">
-          <p className="words-preview__error">{errorMessage}</p>
-        </div>
-      </section>
-    )
-  }
+    if (animationFrameRef.current !== null) {
+      window.cancelAnimationFrame(animationFrameRef.current)
+      animationFrameRef.current = null
+    }
 
-  if (!hasScene && !isLoading) {
-    return (
-      <section className="words-preview">
-        <div className="words-preview__empty">
-          <p>Paste a news article URL above to generate the word cloud.</p>
-        </div>
-      </section>
-    )
-  }
+    if (isLoading) {
+      setOverlayState('loading')
+      setIsContentVisible(false)
+      return
+    }
+
+    if (errorMessage) {
+      if (displayedAnalysis) {
+        setOverlayState('error')
+        setIsContentVisible(false)
+      } else {
+        setOverlayState('error')
+      }
+
+      return
+    }
+
+    if (!analysis) {
+      if (!displayedAnalysis) {
+        setOverlayState(null)
+        setIsContentVisible(false)
+      }
+
+      return
+    }
+
+    if (!displayedAnalysis) {
+      setDisplayedAnalysis(analysis)
+      setOverlayState('loading')
+      setIsContentVisible(false)
+
+      animationFrameRef.current = window.requestAnimationFrame(() => {
+        setOverlayState(null)
+        setIsContentVisible(true)
+      })
+
+      return
+    }
+
+    if (displayedAnalysis === analysis) {
+      setOverlayState(null)
+      setIsContentVisible(true)
+      return
+    }
+
+    timeoutRef.current = window.setTimeout(() => {
+      setDisplayedAnalysis(analysis)
+
+      animationFrameRef.current = window.requestAnimationFrame(() => {
+        setOverlayState(null)
+        setIsContentVisible(true)
+      })
+    }, FADE_DURATION_MS)
+  }, [analysis, displayedAnalysis, errorMessage, isLoading])
+
+  const showEmptyState = !displayedAnalysis && !overlayState
 
   return (
     <section className="words-preview" aria-busy={isLoading}>
-      {activeAnalysis ? (
+      {displayedAnalysis ? (
         <div
           className={`words-preview__content ${
-            showOverlay ? 'words-preview__content--covered' : ''
+            isContentVisible
+              ? 'words-preview__content--visible'
+              : 'words-preview__content--hidden'
           }`}
         >
           <div className="words-preview__header">
             <p className="words-preview__kicker">Analysis preview</p>
-            <h2 className="words-preview__title">{activeAnalysis.title}</h2>
-            <p className="words-preview__url">{activeAnalysis.url}</p>
+            <h2 className="words-preview__title">{displayedAnalysis.title}</h2>
+            <p className="words-preview__url">{displayedAnalysis.url}</p>
           </div>
 
           <div className="words-preview__scene-shell">
-            <WordCloudScene words={activeAnalysis.words} />
+            <WordCloudScene words={displayedAnalysis.words} />
           </div>
         </div>
       ) : null}
 
-      {showLoadingOverlay ? (
-        <div className="words-preview__overlay">
-          <p>Loading article analysis...</p>
-        </div>
-      ) : null}
-
-      {showErrorOverlay ? (
-        <div className="words-preview__overlay">
-          <p className="words-preview__error">{errorMessage}</p>
-        </div>
-      ) : null}
-
-      {!activeAnalysis && isLoading ? (
+      {showEmptyState ? (
         <div className="words-preview__empty">
-          <p>Loading article analysis...</p>
+          <p>Paste a news article URL above to generate the word cloud.</p>
         </div>
       ) : null}
+
+      <div
+        className={`words-preview__overlay ${
+          overlayState ? 'words-preview__overlay--visible' : 'words-preview__overlay--hidden'
+        }`}
+        aria-hidden={!overlayState}
+      >
+        {overlayState === 'loading' ? (
+          <p>Loading article analysis...</p>
+        ) : null}
+
+        {overlayState === 'error' ? (
+          <p className="words-preview__error">{errorMessage}</p>
+        ) : null}
+      </div>
     </section>
   )
 }
